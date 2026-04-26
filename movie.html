@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Star Wars — Movie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preconnect" href="https://image.tmdb.org" />
+<link rel="preconnect" href="https://api.themoviedb.org" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div id="app"></div>
+
+<script>
+  const TMDB_API_KEY = "27c42f7ad754d760e6e828e7137813eb";
+  const API = "https://api.themoviedb.org/3";
+  const IMG_POSTER = "https://image.tmdb.org/t/p/w500";
+  const IMG_BACKDROP = "https://image.tmdb.org/t/p/original";
+  const IMG_PROFILE = "https://image.tmdb.org/t/p/w185";
+
+  const app = document.getElementById("app");
+
+  const id = new URLSearchParams(location.search).get("id");
+  if (!id) { location.replace("index.html"); }
+
+  function escapeHtml(str) {
+    return String(str || "").replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
+  function formatRuntime(min) {
+    if (!min) return "";
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return h ? `${h}h ${m}m` : `${m}m`;
+  }
+
+  function pickTrailer(videos) {
+    const yt = (videos || []).filter(v => v.site === "YouTube");
+    return (
+      yt.find(v => v.type === "Trailer" && v.official) ||
+      yt.find(v => v.type === "Trailer") ||
+      yt.find(v => v.type === "Teaser") ||
+      null
+    );
+  }
+
+  function renderLoading() {
+    app.innerHTML = `
+      <div class="backdrop" style="background:#16161f;">
+        <a class="back-link" href="index.html">← All films</a>
+      </div>
+      <div class="container">
+        <div class="detail-body">
+          <div class="skeleton" style="aspect-ratio:2/3;"></div>
+          <div>
+            <div class="skeleton skeleton-line" style="width:60%;height:32px;"></div>
+            <div class="skeleton skeleton-line" style="width:40%;margin-top:12px;"></div>
+            <div class="skeleton skeleton-line" style="width:90%;margin-top:24px;"></div>
+            <div class="skeleton skeleton-line" style="width:80%;"></div>
+            <div class="skeleton skeleton-line" style="width:85%;"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderNotFound(message) {
+    app.innerHTML = `
+      <div class="container">
+        <div class="empty">
+          <h2>Movie not found</h2>
+          <p>${escapeHtml(message || "We couldn't load this title.")}</p>
+          <p style="margin-top:24px;"><a class="back-link" href="index.html" style="position:static;">← Back to all films</a></p>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderMovie(movie, credits, trailer) {
+    document.title = `${movie.title} — Star Wars`;
+
+    const director = (credits.crew || []).find(c => c.job === "Director");
+    const cast = (credits.cast || []).slice(0, 10);
+
+    const yearStr = movie.release_date ? movie.release_date.slice(0, 4) : "";
+    const runtime = formatRuntime(movie.runtime);
+    const rating = movie.vote_average ? `★ ${movie.vote_average.toFixed(1)}` : "";
+
+    const backdropStyle = movie.backdrop_path
+      ? `background-image:url('${IMG_BACKDROP}${movie.backdrop_path}');`
+      : "background:#16161f;";
+
+    const posterHtml = movie.poster_path
+      ? `<img src="${IMG_POSTER}${movie.poster_path}" alt="${escapeHtml(movie.title)} poster" />`
+      : `<div style="aspect-ratio:2/3;background:var(--surface);"></div>`;
+
+    const genresHtml = (movie.genres || [])
+      .map(g => `<span class="chip">${escapeHtml(g.name)}</span>`).join("");
+
+    const castHtml = cast.map(p => `
+      <div class="cast-card">
+        <div class="cast-photo">
+          ${p.profile_path
+            ? `<img src="${IMG_PROFILE}${p.profile_path}" alt="${escapeHtml(p.name)}" loading="lazy" />`
+            : `<div class="placeholder">${escapeHtml((p.name || "?").charAt(0))}</div>`}
+        </div>
+        <div class="cast-name">${escapeHtml(p.name)}</div>
+        <div class="cast-character">${escapeHtml(p.character || "")}</div>
+      </div>
+    `).join("");
+
+    const trailerHtml = trailer ? `
+      <section class="section">
+        <div class="container">
+          <h2 class="section-title">Trailer</h2>
+          <div class="trailer-frame">
+            <iframe
+              src="https://www.youtube-nocookie.com/embed/${trailer.key}?rel=0&playsinline=1"
+              title="${escapeHtml(movie.title)} trailer"
+              referrerpolicy="strict-origin-when-cross-origin"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen></iframe>
+          </div>
+        </div>
+      </section>
+    ` : "";
+
+    app.innerHTML = `
+      <header class="backdrop" style="${backdropStyle}">
+        <a class="back-link" href="index.html">← All films</a>
+        <div class="hero-content">
+          <h1 class="hero-title">${escapeHtml(movie.title)}</h1>
+          ${movie.tagline ? `<p class="hero-tagline">${escapeHtml(movie.tagline)}</p>` : ""}
+          <div class="hero-meta">
+            ${yearStr ? `<span>${yearStr}</span>` : ""}
+            ${yearStr && runtime ? `<span class="dot">·</span>` : ""}
+            ${runtime ? `<span>${runtime}</span>` : ""}
+            ${rating ? `<span class="dot">·</span><span class="rating">${rating}</span>` : ""}
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <div class="container">
+          <div class="detail-body">
+            <div class="detail-poster">${posterHtml}</div>
+            <div class="detail-meta">
+              ${genresHtml ? `<div><div class="section-label">Genres</div><div class="chips">${genresHtml}</div></div>` : ""}
+              ${director ? `<div><div class="section-label">Directed by</div><div class="director-name">${escapeHtml(director.name)}</div></div>` : ""}
+              ${movie.overview ? `<div><div class="section-label">Overview</div><p class="overview">${escapeHtml(movie.overview)}</p></div>` : ""}
+            </div>
+          </div>
+        </div>
+
+        ${cast.length ? `
+        <section class="section">
+          <div class="container">
+            <h2 class="section-title">Top cast</h2>
+            <div class="cast-row">${castHtml}</div>
+          </div>
+        </section>
+        ` : ""}
+
+        ${trailerHtml}
+
+        <div style="height:80px;"></div>
+      </main>
+    `;
+  }
+
+  async function fetchJson(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`TMDB ${res.status}`);
+    return res.json();
+  }
+
+  (async () => {
+    renderLoading();
+    try {
+      const auth = `api_key=${TMDB_API_KEY}&language=en-US`;
+      const [movie, credits, videos] = await Promise.all([
+        fetchJson(`${API}/movie/${id}?${auth}`),
+        fetchJson(`${API}/movie/${id}/credits?${auth}`),
+        fetchJson(`${API}/movie/${id}/videos?${auth}`)
+      ]);
+      const trailer = pickTrailer(videos.results);
+      renderMovie(movie, credits, trailer);
+    } catch (err) {
+      console.error(err);
+      renderNotFound(err.message);
+    }
+  })();
+</script>
+
+</body>
+</html>

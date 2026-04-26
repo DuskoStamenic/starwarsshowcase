@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Star Wars — A galaxy far, far away</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preconnect" href="https://image.tmdb.org" />
+<link rel="preconnect" href="https://api.themoviedb.org" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="hero">
+  <div class="container">
+    <h1>Star Wars</h1>
+    <p>A galaxy far, far away…</p>
+  </div>
+</header>
+
+<main class="grid-section">
+  <div class="container">
+    <div id="error" class="error" hidden></div>
+    <div id="grid" class="grid" aria-busy="true"></div>
+  </div>
+</main>
+
+<script>
+  const TMDB_API_KEY = "27c42f7ad754d760e6e828e7137813eb";
+  const API = "https://api.themoviedb.org/3";
+  const IMG = "https://image.tmdb.org/t/p/w500";
+
+  const grid = document.getElementById("grid");
+  const errorEl = document.getElementById("error");
+
+  function renderSkeletons(n = 12) {
+    grid.innerHTML = Array.from({ length: n }).map(() => `
+      <div>
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-line"></div>
+        <div class="skeleton skeleton-line short"></div>
+      </div>
+    `).join("");
+  }
+
+  function showError(msg) {
+    errorEl.textContent = msg;
+    errorEl.hidden = false;
+    grid.innerHTML = "";
+  }
+
+  async function fetchJson(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`TMDB ${res.status}`);
+    return res.json();
+  }
+
+  async function loadMovies() {
+    const collection = await fetchJson(`${API}/collection/10?api_key=${TMDB_API_KEY}&language=en-US`);
+    return (collection.parts || [])
+      .filter(m => m.poster_path && m.release_date)
+      .sort((a, b) => (a.release_date || "").localeCompare(b.release_date || ""));
+  }
+
+  function year(dateStr) { return dateStr ? dateStr.slice(0, 4) : ""; }
+
+  function renderMovies(movies) {
+    grid.removeAttribute("aria-busy");
+    grid.innerHTML = movies.map(m => `
+      <a class="card" href="movie.html?id=${m.id}" aria-label="${m.title}">
+        <div class="card-poster">
+          <img src="${IMG}${m.poster_path}" alt="${m.title} poster" loading="lazy" />
+          ${m.vote_average ? `<span class="rating-pill">★ ${m.vote_average.toFixed(1)}</span>` : ""}
+        </div>
+        <div>
+          <div class="card-title">${m.title}</div>
+          <div class="card-year">${year(m.release_date)}</div>
+        </div>
+      </a>
+    `).join("");
+  }
+
+  (async () => {
+    renderSkeletons();
+    try {
+      const movies = await loadMovies();
+      if (!movies.length) {
+        showError("No Star Wars films returned from TMDB.");
+        return;
+      }
+      renderMovies(movies);
+    } catch (err) {
+      console.error(err);
+      showError(`Could not load movies from TMDB. ${err.message}`);
+    }
+  })();
+</script>
+
+</body>
+</html>
